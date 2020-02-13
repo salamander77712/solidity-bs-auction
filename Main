@@ -63,4 +63,17 @@ contract BSauction is Ownable{
     function viewPaid(uint subAuctionId) external view returns(uint){
         return subAuctions[subAuctionId].currentWei;
     }
+    
+    function withdrawl() public onlyOwner{
+        bool active = false;
+        for(uint i = 0; i <= auctions.length; i++){
+            if(auctions[i].completed == false){
+                active = true;
+            }
+        }
+        if(active == false){
+            address payable _owner = owner();
+            _owner.transfer(address(this).balance);
+        }
+    }
 }
