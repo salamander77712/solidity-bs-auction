@@ -1,0 +1,66 @@
+pragma solidity >=0.5.0 <0.6.0;
+import "./ownable.sol";
+
+contract BSauction is Ownable{
+    
+    uint minProfit = 100000000;
+    
+    struct Auction{
+        uint totalWei;
+        uint maxWei;
+        uint payoutWei;
+        bool completed;
+    }
+    
+    struct subAuction{
+        uint auctionId;
+        uint currentWei;
+        address payable owner;
+    }
+    
+    Auction[] public auctions;
+    subAuction[] public subAuctions;
+    
+    mapping (uint => address payable) auctionToWinner;
+    
+    function createAuction(uint payout) public {
+        auctions.push(Auction(0,0,payout,false));
+        
+    }
+    
+    function payAuction(uint auctionId) public payable {
+        require(auctions[auctionId].completed == false);
+        subAuctions.push(subAuction(auctionId,msg.value,msg.sender));
+        auctions[auctionId].totalWei += msg.value;
+        if(msg.value > auctions[auctionId].maxWei){
+            auctions[auctionId].maxWei = msg.value;
+            auctionToWinner[auctionId] = msg.sender;
+        }
+    }
+    
+    function payAuctionMore(uint subAuctionId) public payable{
+        require(auctions[subAuctions[subAuctionId].auctionId].completed == false);
+        require(subAuctions[subAuctionId].owner == msg.sender);
+        subAuctions[subAuctionId].currentWei += msg.value;
+        auctions[subAuctions[subAuctionId].auctionId].totalWei += msg.value;
+        if(subAuctions[subAuctionId].currentWei > auctions[subAuctions[subAuctionId].auctionId].maxWei){
+            auctions[subAuctions[subAuctionId].auctionId].maxWei = subAuctions[subAuctionId].currentWei;
+            auctionToWinner[subAuctions[subAuctionId].auctionId] = msg.sender;
+        }
+    }
+    
+    function payout(uint auctionId) public{
+        require(auctions[auctionId].completed == false);
+        require(auctions[auctionId].totalWei >= auctions[auctionId].payoutWei + minProfit);
+        auctionToWinner[auctionId].transfer(auctions[auctionId].payoutWei);
+        auctions[auctionId].completed = true;
+    }
+    
+    function viewMax(uint auctionId) external view returns(uint){
+        return auctions[auctionId].maxWei;
+    }
+    
+    function viewPaid(uint subAuctionId) external view returns(uint){
+        return subAuctions[subAuctionId].currentWei;
+    }
+}
