@@ -3,12 +3,16 @@ import "./ownable.sol";
 
 contract BSauction is Ownable{
     
-    uint minProfit = 100000000;
+    event auctionCreated(uint id, uint payout, uint64 endDate);
+    event subAuctionCreated(uint id, uint auctionId, address creator);
+    
+    uint minProfit = 1;
     
     struct Auction{
         uint totalWei;
         uint maxWei;
         uint payoutWei;
+        uint64 endDate;
         bool completed;
     }
     
@@ -23,23 +27,26 @@ contract BSauction is Ownable{
     
     mapping (uint => address payable) auctionToWinner;
     
-    function createAuction(uint payout) public {
-        auctions.push(Auction(0,0,payout,false));
-        
+    function createAuction(uint payout, uint64 endDate) public onlyOwner{
+        uint id = auctions.push(Auction(0,0,payout,endDate,false)) - 1;
+        emit auctionCreated(id, payout, endDate);
     }
     
     function payAuction(uint auctionId) public payable {
         require(auctions[auctionId].completed == false);
-        subAuctions.push(subAuction(auctionId,msg.value,msg.sender));
+        require(auctions[auctionId].endDate >= now);
+        uint id = subAuctions.push(subAuction(auctionId,msg.value,msg.sender)) - 1;
         auctions[auctionId].totalWei += msg.value;
         if(msg.value > auctions[auctionId].maxWei){
             auctions[auctionId].maxWei = msg.value;
             auctionToWinner[auctionId] = msg.sender;
         }
+        emit subAuctionCreated(id, auctionId, msg.sender);
     }
     
     function payAuctionMore(uint subAuctionId) public payable{
         require(auctions[subAuctions[subAuctionId].auctionId].completed == false);
+        require(auctions[subAuctions[subAuctionId].auctionId].endDate >= now);
         require(subAuctions[subAuctionId].owner == msg.sender);
         subAuctions[subAuctionId].currentWei += msg.value;
         auctions[subAuctions[subAuctionId].auctionId].totalWei += msg.value;
@@ -49,8 +56,16 @@ contract BSauction is Ownable{
         }
     }
     
+    function extendAuctionLife(uint id, uint64 endDate) public{
+        require(auctions[id].completed == false);
+        require(auctions[id].totalWei < auctions[id].payoutWei + minProfit);
+        require(auctions[id].endDate < now);
+        auctions[id].endDate = endDate;
+    }
+    
     function payout(uint auctionId) public{
         require(auctions[auctionId].completed == false);
+        require(auctions[auctionId].endDate < now);
         require(auctions[auctionId].totalWei >= auctions[auctionId].payoutWei + minProfit);
         auctionToWinner[auctionId].transfer(auctions[auctionId].payoutWei);
         auctions[auctionId].completed = true;
